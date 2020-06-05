@@ -33,11 +33,15 @@ val configMap = Map(
 )
 
 // Retreive the columns that you have to use in aggregations
-var sensorDF = eventhubs.select(get_json_object(($"body").cast("string"), "$.PointId").alias("PointId"),
-                                get_json_object(($"body").cast("string"), "$.TimeStamp").alias("TimeStamp"),
-                                get_json_object(($"body").cast("string"), "$.Temperature").alias("Temperature"))                                
-    
-sensorDF = sensorDF.select($"PointId", to_timestamp($"TimeStamp").alias("TimeStamp"), ($"Temperature").cast("double"))
+val sensorDataSchema = StructType(Seq(StructField("PointId",StringType,true),
+                                      StructField("TimeStamp",TimestampType,true),
+                                      StructField("Temperature",DoubleType,true)))
+
+
+var sensorDF = eventhubs.selectExpr("CAST(body as string)")
+                        .select(from_json($"body",sensorDataSchema).as("sensorData"))
+                            
+sensorDF = sensorDF.select($"sensorData.PointId".alias("PointId"), to_timestamp($"sensorData.TimeStamp").alias("TimeStamp"), ($"sensorData.Temperature").cast("double").as("Temperature"))
 //sensorDF.printSchema
 
 var streamingAggregateDF = sensorDF.groupBy($"PointId",window($"TimeStamp", "15 minute").as("TimeStamp")) 
